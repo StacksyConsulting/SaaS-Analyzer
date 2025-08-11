@@ -755,7 +755,13 @@ export default function SaaSContractAnalyzer({
   // const isDark = hasBackground || darkBackground
 
   return (
-    <div className="min-h-screen p-4">
+    <div className="min-h-screen p-4 bg-transparent" style={{ backgroundColor: "transparent" }}>
+      <style jsx global>{`
+  :root, html, body {
+    background: transparent !important;
+    background-color: transparent !important;
+  }
+`}</style>
       <div className="relative z-10">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-8">
