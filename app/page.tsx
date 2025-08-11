@@ -21,7 +21,7 @@ type Contract = {
 export default function Page() {
   return (
     <main>
-      <SaaSContractAnalyzer backgroundImageUrl="" overlayOpacity={0} title="SaaS Stack Analyzer" />
+      <SaaSContractAnalyzer backgroundImageUrl="" overlayOpacity={0} darkBackground title="SaaS Stack Analyzer" />
     </main>
   )
 }

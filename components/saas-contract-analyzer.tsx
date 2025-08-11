@@ -19,6 +19,7 @@ export type SaaSContractAnalyzerProps = {
   backgroundImageUrl?: string
   overlayOpacity?: number // 0..1
   title?: string
+  darkBackground?: boolean
 }
 
 type Contract = {
@@ -42,6 +43,7 @@ export default function SaaSContractAnalyzer({
   backgroundImageUrl = "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Grey%20Brick%20Wall_edited.jpg-bJrS3UIUrGhH3BOaX6OfOF4NbaYATE.jpeg",
   overlayOpacity = 0.4,
   title = "SaaS Stack Analyzer",
+  darkBackground = false,
 }: SaaSContractAnalyzerProps) {
   const [contracts, setContracts] = useState<Contract[]>([])
   const [showResults, setShowResults] = useState(false)
@@ -641,10 +643,11 @@ export default function SaaSContractAnalyzer({
   const { totalSavings, totalSpend } = calculateSavings()
   const savingsPercentage = totalSpend > 0 ? (totalSavings / totalSpend) * 100 : 0
   const hasBackground = Boolean(backgroundImageUrl)
+  const isDark = hasBackground || darkBackground
 
   return (
     <div
-      className="min-h-screen p-4 relative"
+      className={`min-h-screen p-4 relative ${darkBackground ? "bg-black" : ""}`}
       style={
         hasBackground
           ? {
@@ -667,10 +670,10 @@ export default function SaaSContractAnalyzer({
                 {title}
               </h1>
             </div>
-            <p className={`${montserrat.className} text-xl ${hasBackground ? "text-white" : "text-gray-700"} mb-2`}>
+            <p className={`${montserrat.className} text-xl ${isDark ? "text-white" : "text-gray-700"} mb-2`}>
               Discover hidden overlaps and potential savings in your software stack
             </p>
-            <p className={`${montserrat.className} text-sm ${hasBackground ? "text-gray-300" : "text-gray-500"}`}>
+            <p className={`${montserrat.className} text-sm ${isDark ? "text-gray-300" : "text-gray-500"}`}>
               Free analysis • No commitment • Get instant insights
             </p>
           </div>
