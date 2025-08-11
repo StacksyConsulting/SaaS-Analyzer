@@ -21,12 +21,7 @@ type Contract = {
 export default function Page() {
   return (
     <main>
-      <SaaSContractAnalyzer
-        // Props are optional; defaults are provided inside the component
-        backgroundImageUrl="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Grey%20Brick%20Wall_edited.jpg-bJrS3UIUrGhH3BOaX6OfOF4NbaYATE.jpeg"
-        overlayOpacity={0.4}
-        title="SaaS Stack Analyzer"
-      />
+      <SaaSContractAnalyzer backgroundImageUrl="" overlayOpacity={0} title="SaaS Stack Analyzer" />
     </main>
   )
 }

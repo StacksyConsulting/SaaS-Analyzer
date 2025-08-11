@@ -7,6 +7,14 @@ import { Jockey_One, Montserrat } from "next/font/google"
 const jockeyOne = Jockey_One({ subsets: ["latin"], weight: "400" })
 const montserrat = Montserrat({ subsets: ["latin"], weight: ["400", "500", "600", "700"] })
 
+const OBS_PRODUCTS = {
+  "Application security": { unit: "host-hours (8 GiB)" },
+  "Real user monitoring": { unit: "sessions" },
+  "Infrastructure monitoring": { unit: "host-hours (any size)" },
+  "Full-stack monitoring": { unit: "host-hours (8 GiB)" },
+} as const
+type ObsProduct = keyof typeof OBS_PRODUCTS
+
 export type SaaSContractAnalyzerProps = {
   backgroundImageUrl?: string
   overlayOpacity?: number // 0..1
@@ -24,6 +32,10 @@ type Contract = {
   avgPricePerUser: number
   marketPosition: "Premium" | "Standard" | "Budget" | "Unknown"
   actualPricePerUser: number
+  // Observability-only fields
+  obsProduct?: "Application security" | "Real user monitoring" | "Infrastructure monitoring" | "Full-stack monitoring"
+  obsUnits?: string
+  unitLabel?: string // display label: "user", "sessions", "host-hours (8 GiB)", etc.
 }
 
 export default function SaaSContractAnalyzer({
@@ -39,8 +51,11 @@ export default function SaaSContractAnalyzer({
     contractLength: 12,
     users: "",
     totalValue: "",
+    obsProduct: "" as "" | ObsProduct,
+    obsUnits: "",
   })
 
+  // Updated vendor database
   const vendorDatabase: Record<
     string,
     { category: string; features: string[]; avgPricePerUser: number; marketPosition: "Premium" | "Standard" | "Budget" }
@@ -58,6 +73,7 @@ export default function SaaSContractAnalyzer({
       avgPricePerUser: 20,
       marketPosition: "Standard",
     },
+
     // Analytics & BI
     Looker: {
       category: "Analytics & BI",
@@ -83,25 +99,7 @@ export default function SaaSContractAnalyzer({
       avgPricePerUser: 75,
       marketPosition: "Premium",
     },
-    // Cloud Infrastructure
-    AWS: {
-      category: "Cloud Infrastructure",
-      features: ["Computing Services", "Storage", "Database"],
-      avgPricePerUser: 100,
-      marketPosition: "Premium",
-    },
-    "Google Cloud Platform": {
-      category: "Cloud Infrastructure",
-      features: ["Computing Services", "Storage", "Database"],
-      avgPricePerUser: 90,
-      marketPosition: "Premium",
-    },
-    "Microsoft Azure": {
-      category: "Cloud Infrastructure",
-      features: ["Computing Services", "Storage", "Database"],
-      avgPricePerUser: 95,
-      marketPosition: "Premium",
-    },
+
     // Communication
     Discord: {
       category: "Communication",
@@ -133,6 +131,7 @@ export default function SaaSContractAnalyzer({
       avgPricePerUser: 20,
       marketPosition: "Standard",
     },
+
     // CRM
     Freshsales: {
       category: "CRM",
@@ -164,6 +163,7 @@ export default function SaaSContractAnalyzer({
       avgPricePerUser: 20,
       marketPosition: "Budget",
     },
+
     // Customer Support
     Freshdesk: {
       category: "Customer Support",
@@ -183,6 +183,7 @@ export default function SaaSContractAnalyzer({
       avgPricePerUser: 89,
       marketPosition: "Standard",
     },
+
     // Design & Creative
     "Adobe Creative Cloud": {
       category: "Design & Creative",
@@ -202,6 +203,7 @@ export default function SaaSContractAnalyzer({
       avgPricePerUser: 15,
       marketPosition: "Standard",
     },
+
     // Development Tools
     GitHub: {
       category: "Development Tools",
@@ -215,6 +217,7 @@ export default function SaaSContractAnalyzer({
       avgPricePerUser: 19,
       marketPosition: "Standard",
     },
+
     // E-commerce
     Shopify: {
       category: "E-commerce",
@@ -228,6 +231,7 @@ export default function SaaSContractAnalyzer({
       avgPricePerUser: 25,
       marketPosition: "Budget",
     },
+
     // Email Marketing
     "Campaign Monitor": {
       category: "Email Marketing",
@@ -247,7 +251,8 @@ export default function SaaSContractAnalyzer({
       avgPricePerUser: 20,
       marketPosition: "Standard",
     },
-    // Finance & Accounting
+
+    // Finance & Accounting (expanded)
     FreshBooks: {
       category: "Finance & Accounting",
       features: ["Invoicing", "Time Tracking", "Expense Management"],
@@ -272,6 +277,73 @@ export default function SaaSContractAnalyzer({
       avgPricePerUser: 35,
       marketPosition: "Standard",
     },
+    MYOB: {
+      category: "Finance & Accounting",
+      features: ["Accounting", "Invoicing", "Payroll"],
+      avgPricePerUser: 28,
+      marketPosition: "Standard",
+    },
+    "Stripe Billing": {
+      category: "Finance & Accounting",
+      features: ["Payments", "Subscription Billing", "Invoicing"],
+      avgPricePerUser: 25,
+      marketPosition: "Standard",
+    },
+    "Sage Intacct": {
+      category: "Finance & Accounting",
+      features: ["General Ledger", "AP/AR", "Multi-Entity Consolidation"],
+      avgPricePerUser: 60,
+      marketPosition: "Premium",
+    },
+    NetSuite: {
+      category: "Finance & Accounting",
+      features: ["ERP", "Financials", "Billing"],
+      avgPricePerUser: 90,
+      marketPosition: "Premium",
+    },
+    Zuora: {
+      category: "Finance & Accounting",
+      features: ["Subscription Billing", "CPQ", "Revenue Recognition"],
+      avgPricePerUser: 85,
+      marketPosition: "Premium",
+    },
+    Chargebee: {
+      category: "Finance & Accounting",
+      features: ["Subscription Billing", "Revenue Recognition", "Dunning"],
+      avgPricePerUser: 40,
+      marketPosition: "Standard",
+    },
+    "BILL (Bill.com)": {
+      category: "Finance & Accounting",
+      features: ["AP Automation", "Payments", "Approvals"],
+      avgPricePerUser: 20,
+      marketPosition: "Standard",
+    },
+    Expensify: {
+      category: "Finance & Accounting",
+      features: ["Expense Reports", "Corporate Cards", "Reimbursements"],
+      avgPricePerUser: 9,
+      marketPosition: "Budget",
+    },
+    Ramp: {
+      category: "Finance & Accounting",
+      features: ["Spend Management", "Corporate Cards", "Expense Automation"],
+      avgPricePerUser: 10,
+      marketPosition: "Budget",
+    },
+    Brex: {
+      category: "Finance & Accounting",
+      features: ["Corporate Cards", "Spend Management", "Bill Pay"],
+      avgPricePerUser: 12,
+      marketPosition: "Standard",
+    },
+    "SAP Concur": {
+      category: "Finance & Accounting",
+      features: ["Expense", "Travel", "Invoice"],
+      avgPricePerUser: 35,
+      marketPosition: "Standard",
+    },
+
     // HR & Recruiting
     ADP: {
       category: "HR & Recruiting",
@@ -297,6 +369,7 @@ export default function SaaSContractAnalyzer({
       avgPricePerUser: 125,
       marketPosition: "Premium",
     },
+
     // Marketing
     ActiveCampaign: {
       category: "Marketing",
@@ -316,6 +389,7 @@ export default function SaaSContractAnalyzer({
       avgPricePerUser: 125,
       marketPosition: "Premium",
     },
+
     // Project Management
     Asana: {
       category: "Project Management",
@@ -353,6 +427,7 @@ export default function SaaSContractAnalyzer({
       avgPricePerUser: 10,
       marketPosition: "Budget",
     },
+
     // Security & IT
     "1Password": {
       category: "Security & IT",
@@ -378,6 +453,38 @@ export default function SaaSContractAnalyzer({
       avgPricePerUser: 8,
       marketPosition: "Standard",
     },
+
+    // Observability & Monitoring (new)
+    Dynatrace: {
+      category: "Observability & Monitoring",
+      features: ["APM", "Infrastructure Monitoring", "AI-assisted Insights"],
+      avgPricePerUser: 70,
+      marketPosition: "Premium",
+    },
+    "New Relic": {
+      category: "Observability & Monitoring",
+      features: ["APM", "Logs", "Metrics & Traces"],
+      avgPricePerUser: 49,
+      marketPosition: "Standard",
+    },
+    AppDynamics: {
+      category: "Observability & Monitoring",
+      features: ["APM", "Business Transaction Monitoring", "Infrastructure"],
+      avgPricePerUser: 65,
+      marketPosition: "Premium",
+    },
+    "Splunk Observability": {
+      category: "Observability & Monitoring",
+      features: ["Logs", "APM", "Real-time Metrics"],
+      avgPricePerUser: 80,
+      marketPosition: "Premium",
+    },
+    Datadog: {
+      category: "Observability & Monitoring",
+      features: ["APM", "Infrastructure", "Log Management"],
+      avgPricePerUser: 45,
+      marketPosition: "Standard",
+    },
   }
 
   const categories = [...new Set(Object.values(vendorDatabase).map((v) => v.category))].sort()
@@ -399,7 +506,9 @@ export default function SaaSContractAnalyzer({
   }
   function categoryAdjustments(category: string) {
     let adj = 0
-    if (category === "Cloud Infrastructure" || category === "Development Tools") adj += 5
+    // Infrastructure/platform tools often have higher discounts; Development Tools kept as-is.
+    if (category === "Development Tools") adj += 5
+    // Specialized/niche typically lower flexibility
     if (["AI & ML", "Security & IT", "Design & Creative"].includes(category)) adj -= 3
     return adj
   }
@@ -409,29 +518,27 @@ export default function SaaSContractAnalyzer({
     return 0
   }
   function expectedFor(contract: Contract) {
-    const seats = Number.parseInt(contract.users)
+    const isObs = contract.category === "Observability & Monitoring"
+    const seats = isObs ? Number.parseFloat(contract.obsUnits || "0") || 1 : Number.parseInt(contract.users || "0") || 1
+
     let { range } = sizeBandBySeats(seats)
 
-    // Multi-year commitment adders (based on your guidance)
     if (contract.contractLength >= 36) range = addToRange(range, [15, 20])
     else if (contract.contractLength >= 24) range = addToRange(range, [10, 15])
 
-    // Volume kicker thresholds
     if (seats >= 500) range = addToRange(range, 10)
     else if (seats >= 100) range = addToRange(range, 5)
 
-    // Product and market position adjustments
     range = addToRange(range, categoryAdjustments(contract.category))
     range = addToRange(range, positionAdjustments(contract.marketPosition))
 
-    // clamp and normalize
     range = [clamp(range[0]), clamp(range[1])] as [number, number]
     if (range[0] > range[1]) range = [range[1], range[0]]
 
     const yourMonthly = contract.actualPricePerUser
     const sticker = contract.avgPricePerUser > 0 ? contract.avgPricePerUser : yourMonthly
 
-    const minTarget = sticker * (1 - range[1] / 100) // higher discount => lower target price
+    const minTarget = sticker * (1 - range[1] / 100)
     const maxTarget = sticker * (1 - range[0] / 100)
     const targetMid = (minTarget + maxTarget) / 2
 
@@ -439,12 +546,19 @@ export default function SaaSContractAnalyzer({
   }
 
   function addContract() {
+    const isObs = currentContract.category === "Observability & Monitoring"
+    const quantity = isObs
+      ? Number.parseFloat(currentContract.obsUnits || "0")
+      : Number.parseInt(currentContract.users || "0")
+    const totalVal = Number.parseFloat(currentContract.totalValue || "0")
+
     if (
       !currentContract.vendor ||
-      !currentContract.users ||
       !currentContract.totalValue ||
-      Number.parseInt(currentContract.users) <= 0 ||
-      Number.parseFloat(currentContract.totalValue) <= 0
+      !Number.isFinite(quantity) ||
+      quantity <= 0 ||
+      !Number.isFinite(totalVal) ||
+      totalVal <= 0
     )
       return
 
@@ -455,6 +569,10 @@ export default function SaaSContractAnalyzer({
       marketPosition: "Standard" as const,
     }
 
+    const unitLabel = isObs
+      ? OBS_PRODUCTS[(currentContract.obsProduct || "Infrastructure monitoring") as ObsProduct].unit
+      : "user"
+
     const newContract: Contract = {
       ...currentContract,
       id: Date.now(),
@@ -462,14 +580,21 @@ export default function SaaSContractAnalyzer({
       features: vendor.features,
       avgPricePerUser: vendor.avgPricePerUser,
       marketPosition: vendor.marketPosition,
-      actualPricePerUser:
-        Number.parseFloat(currentContract.totalValue) /
-        Number.parseInt(currentContract.users) /
-        currentContract.contractLength,
+      // treat as price per unit per month (user or obs unit)
+      actualPricePerUser: totalVal / quantity / currentContract.contractLength,
+      unitLabel,
     }
 
     setContracts((prev) => [...prev, newContract])
-    setCurrentContract({ category: "", vendor: "", contractLength: 12, users: "", totalValue: "" })
+    setCurrentContract({
+      category: "",
+      vendor: "",
+      contractLength: 12,
+      users: "",
+      totalValue: "",
+      obsProduct: "" as "" | ObsProduct,
+      obsUnits: "",
+    })
   }
 
   function removeContract(id: number) {
@@ -499,11 +624,14 @@ export default function SaaSContractAnalyzer({
     let totalSpend = 0
 
     contracts.forEach((c) => {
-      const users = Number.parseInt(c.users)
+      const volume =
+        c.category === "Observability & Monitoring"
+          ? Number.parseFloat(c.obsUnits || "0") || 0
+          : Number.parseInt(c.users || "0") || 0
       const yourMonthly = c.actualPricePerUser
       const { targetMid } = expectedFor(c)
-      totalSpend += yourMonthly * users * 12
-      if (yourMonthly > targetMid) totalSavings += (yourMonthly - targetMid) * users * 12
+      totalSpend += yourMonthly * volume * 12
+      if (yourMonthly > targetMid) totalSavings += (yourMonthly - targetMid) * volume * 12
     })
 
     return { totalSavings, totalSpend }
@@ -512,18 +640,25 @@ export default function SaaSContractAnalyzer({
   const overlaps = getFeatureOverlaps()
   const { totalSavings, totalSpend } = calculateSavings()
   const savingsPercentage = totalSpend > 0 ? (totalSavings / totalSpend) * 100 : 0
+  const hasBackground = Boolean(backgroundImageUrl)
 
   return (
     <div
       className="min-h-screen p-4 relative"
-      style={{
-        backgroundImage: `url("${backgroundImageUrl}")`,
-        backgroundRepeat: "no-repeat",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }}
+      style={
+        hasBackground
+          ? {
+              backgroundImage: `url("${backgroundImageUrl}")`,
+              backgroundRepeat: "no-repeat",
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+            }
+          : {}
+      }
     >
-      <div className="absolute inset-0" style={{ background: `rgba(0,0,0,${overlayOpacity})` }} aria-hidden="true" />
+      {hasBackground && overlayOpacity > 0 ? (
+        <div className="absolute inset-0" style={{ background: `rgba(0,0,0,${overlayOpacity})` }} aria-hidden="true" />
+      ) : null}
       <div className="relative z-10">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-8">
@@ -532,10 +667,10 @@ export default function SaaSContractAnalyzer({
                 {title}
               </h1>
             </div>
-            <p className={`${montserrat.className} text-xl text-white mb-2`}>
+            <p className={`${montserrat.className} text-xl ${hasBackground ? "text-white" : "text-gray-700"} mb-2`}>
               Discover hidden overlaps and potential savings in your software stack
             </p>
-            <p className={`${montserrat.className} text-sm text-gray-300`}>
+            <p className={`${montserrat.className} text-sm ${hasBackground ? "text-gray-300" : "text-gray-500"}`}>
               Free analysis • No commitment • Get instant insights
             </p>
           </div>
@@ -544,12 +679,23 @@ export default function SaaSContractAnalyzer({
             <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
               <h2 className="text-2xl font-semibold mb-6 text-gray-800">Add Your SaaS Contracts</h2>
 
-              <div className="grid md:grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
-                <div>
+              <div className="flex flex-wrap justify-center gap-4 mb-6">
+                <div className="w-full max-w-sm">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
                   <select
                     value={currentContract.category}
-                    onChange={(e) => setCurrentContract({ ...currentContract, category: e.target.value, vendor: "" })}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setCurrentContract((prev) => ({
+                        ...prev,
+                        category: val,
+                        vendor: "",
+                        // set sensible default for obs product
+                        obsProduct:
+                          val === "Observability & Monitoring" ? "Infrastructure monitoring" : ("" as "" | ObsProduct),
+                        obsUnits: val === "Observability & Monitoring" ? prev.obsUnits : "",
+                      }))
+                    }}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">All categories...</option>
@@ -561,7 +707,7 @@ export default function SaaSContractAnalyzer({
                   </select>
                 </div>
 
-                <div>
+                <div className="w-full max-w-sm">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Vendor</label>
                   <select
                     value={currentContract.vendor}
@@ -584,7 +730,7 @@ export default function SaaSContractAnalyzer({
                   </select>
                 </div>
 
-                <div>
+                <div className="w-full max-w-sm">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Contract Length</label>
                   <select
                     value={currentContract.contractLength}
@@ -599,18 +745,55 @@ export default function SaaSContractAnalyzer({
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Users/Licenses</label>
-                  <input
-                    type="number"
-                    value={currentContract.users}
-                    onChange={(e) => setCurrentContract({ ...currentContract, users: e.target.value })}
-                    placeholder="50"
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
+                {/* Users/Licenses or Observability Units */}
+                {currentContract.category !== "Observability & Monitoring" ? (
+                  <div className="w-full max-w-sm">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Users/Licenses</label>
+                    <input
+                      type="number"
+                      value={currentContract.users}
+                      onChange={(e) => setCurrentContract({ ...currentContract, users: e.target.value })}
+                      placeholder="50"
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div className="w-full max-w-sm">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Observability Product</label>
+                      <select
+                        value={currentContract.obsProduct || ""}
+                        onChange={(e) =>
+                          setCurrentContract((prev) => ({ ...prev, obsProduct: e.target.value as ObsProduct }))
+                        }
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        {Object.keys(OBS_PRODUCTS).map((p) => (
+                          <option key={p} value={p}>
+                            {p}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="w-full max-w-sm">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Units ({currentContract.obsProduct ? OBS_PRODUCTS[currentContract.obsProduct].unit : "units"})
+                      </label>
+                      <input
+                        type="number"
+                        value={currentContract.obsUnits}
+                        onChange={(e) => setCurrentContract((prev) => ({ ...prev, obsUnits: e.target.value }))}
+                        placeholder={currentContract.obsProduct === "Real user monitoring" ? "100000" : "720"}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Enter total units for the contract term (e.g., sessions or host-hours).
+                      </p>
+                    </div>
+                  </>
+                )}
 
-                <div>
+                <div className="w-full max-w-sm">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Total Contract Value</label>
                   <input
                     type="number"
@@ -621,14 +804,18 @@ export default function SaaSContractAnalyzer({
                   />
                 </div>
 
-                <div className="flex items-end">
+                <div className="w-full max-w-sm flex items-end">
                   <button
                     onClick={addContract}
                     disabled={
                       !currentContract.vendor ||
-                      !currentContract.users ||
                       !currentContract.totalValue ||
-                      Number.parseInt(currentContract.users) <= 0 ||
+                      (currentContract.category === "Observability & Monitoring"
+                        ? !currentContract.obsUnits
+                        : !currentContract.users) ||
+                      (currentContract.category === "Observability & Monitoring"
+                        ? Number.parseFloat(currentContract.obsUnits || "0") <= 0
+                        : Number.parseInt(currentContract.users || "0") <= 0) ||
                       Number.parseFloat(currentContract.totalValue) <= 0
                     }
                     className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -653,7 +840,10 @@ export default function SaaSContractAnalyzer({
                         </div>
                         <div className="text-sm text-gray-600">
                           <span className="flex items-center gap-1">
-                            <Users size={14} /> {contract.users} users
+                            <Users size={14} />{" "}
+                            {contract.category === "Observability & Monitoring"
+                              ? `${contract.obsUnits || 0} ${contract.unitLabel}`
+                              : `${contract.users} users`}
                           </span>
                         </div>
                         <div className="text-sm text-gray-600">
@@ -723,8 +913,11 @@ export default function SaaSContractAnalyzer({
                       {contracts.map((contract) => {
                         const { discountRange, sticker, minTarget, maxTarget, targetMid } = expectedFor(contract)
                         const yourPrice = contract.actualPricePerUser
-                        const users = Number.parseInt(contract.users)
-                        const annualImpact = Math.round((yourPrice - targetMid) * users * 12)
+                        const volume =
+                          contract.category === "Observability & Monitoring"
+                            ? Number.parseFloat(contract.obsUnits || "0") || 0
+                            : Number.parseInt(contract.users || "0") || 0
+                        const annualImpact = Math.round((yourPrice - targetMid) * volume * 12)
 
                         const status =
                           contract.avgPricePerUser === 0
@@ -740,11 +933,19 @@ export default function SaaSContractAnalyzer({
                             <td className="py-4 px-4">
                               <div>
                                 <div className="font-medium text-gray-900">{contract.vendor}</div>
-                                <div className="text-sm text-gray-500">{users} users</div>
+                                <div className="text-sm text-gray-500">
+                                  {volume} {contract.unitLabel}
+                                </div>
                               </div>
                             </td>
-                            <td className="py-4 px-4 font-medium">${yourPrice.toFixed(0)}</td>
-                            <td className="py-4 px-4">${sticker.toFixed(0)}</td>
+                            <td className="py-4 px-4">
+                              <div className="font-medium">${yourPrice.toFixed(0)}</div>
+                              <div className="text-xs text-gray-500">per {contract.unitLabel || "user"} / mo</div>
+                            </td>
+                            <td className="py-4 px-4">
+                              <div>${sticker.toFixed(0)}</div>
+                              <div className="text-xs text-gray-500">per {contract.unitLabel || "user"} / mo</div>
+                            </td>
                             <td className="py-4 px-4">
                               <span className="bg-blue-50 text-blue-800 px-3 py-1 rounded-full text-sm">
                                 {discountRange[0].toFixed(0)}–{discountRange[1].toFixed(0)}%
@@ -753,6 +954,7 @@ export default function SaaSContractAnalyzer({
                             <td className="py-4 px-4">
                               ${Math.max(0, Math.round(minTarget)).toLocaleString()} – $
                               {Math.max(0, Math.round(maxTarget)).toLocaleString()}
+                              <div className="text-xs text-gray-500">per {contract.unitLabel || "user"} / mo</div>
                               <div className="text-xs text-gray-500">
                                 midpoint: ${Math.round(targetMid).toLocaleString()}
                               </div>
