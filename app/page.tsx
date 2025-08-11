@@ -757,10 +757,10 @@ export default function SaaSContractAnalyzer({
   return (
     <div className="min-h-screen p-4 bg-transparent" style={{ backgroundColor: "transparent" }}>
       <style jsx global>{`
-  :root, html, body {
-    background: transparent !important;
-    background-color: transparent !important;
-  }
+:root, html, body {
+  background: transparent !important;
+  background-color: transparent !important;
+}
 `}</style>
       <div className="relative z-10">
         <div className="max-w-6xl mx-auto">
@@ -770,10 +770,10 @@ export default function SaaSContractAnalyzer({
                 {title}
               </h1>
             </div>
-            <p className={`${montserrat.className} text-xl text-gray-700 mb-2`}>
+            <p className={`${montserrat.className} text-xl text-white mb-2`}>
               Discover hidden overlaps and potential savings in your software stack
             </p>
-            <p className={`${montserrat.className} text-sm text-gray-500`}>
+            <p className={`${montserrat.className} text-sm text-white`}>
               Free analysis • No commitment • Get instant insights with 2025 market pricing
             </p>
           </div>
