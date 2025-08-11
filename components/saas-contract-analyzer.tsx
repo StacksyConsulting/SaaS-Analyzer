@@ -36,7 +36,9 @@ type Contract = {
   // Observability-only fields
   obsProduct?: "Application security" | "Real user monitoring" | "Infrastructure monitoring" | "Full-stack monitoring"
   obsUnits?: string
-  unitLabel?: string // display label: "user", "sessions", "host-hours (8 GiB)", etc.
+  // Email Marketing field
+  emailVolume?: string
+  unitLabel?: string // display label: "user", "sessions", "host-hours (8 GiB)", "emails/month", etc.
 }
 
 export default function SaaSContractAnalyzer({
@@ -55,6 +57,7 @@ export default function SaaSContractAnalyzer({
     totalValue: "",
     obsProduct: "" as "" | ObsProduct,
     obsUnits: "",
+    emailVolume: "", // Add this new field
   })
 
   // Updated vendor database
@@ -234,7 +237,7 @@ export default function SaaSContractAnalyzer({
       marketPosition: "Budget",
     },
 
-    // Email Marketing
+    // Email Marketing (expanded)
     "Campaign Monitor": {
       category: "Email Marketing",
       features: ["Email Design", "Automation", "Segmentation"],
@@ -252,6 +255,96 @@ export default function SaaSContractAnalyzer({
       features: ["Email Marketing", "Automation", "Landing Pages"],
       avgPricePerUser: 20,
       marketPosition: "Standard",
+    },
+    AWeber: {
+      category: "Email Marketing",
+      features: ["Email Automation", "Landing Pages", "Web Push Notifications"],
+      avgPricePerUser: 19,
+      marketPosition: "Standard",
+    },
+    GetResponse: {
+      category: "Email Marketing",
+      features: ["Email Marketing", "Webinars", "Landing Pages", "Marketing Automation"],
+      avgPricePerUser: 22,
+      marketPosition: "Standard",
+    },
+    Klaviyo: {
+      category: "Email Marketing",
+      features: ["E-commerce Personalization", "SMS Marketing", "Advanced Segmentation"],
+      avgPricePerUser: 45,
+      marketPosition: "Premium",
+    },
+    "Pardot (Salesforce)": {
+      category: "Email Marketing",
+      features: ["B2B Marketing Automation", "Lead Scoring", "Salesforce Integration"],
+      avgPricePerUser: 125,
+      marketPosition: "Premium",
+    },
+    HubSpot: {
+      category: "Email Marketing",
+      features: ["Marketing Automation", "CRM Integration", "Content Management"],
+      avgPricePerUser: 100,
+      marketPosition: "Premium",
+    },
+    "Marketo (Adobe)": {
+      category: "Email Marketing",
+      features: ["Enterprise Marketing Automation", "Lead Management", "Account-Based Marketing"],
+      avgPricePerUser: 195,
+      marketPosition: "Premium",
+    },
+    "Eloqua (Oracle)": {
+      category: "Email Marketing",
+      features: ["Enterprise B2B Automation", "Lead Scoring", "Campaign Management"],
+      avgPricePerUser: 200,
+      marketPosition: "Premium",
+    },
+    ActiveCampaign: {
+      category: "Email Marketing",
+      features: ["Customer Experience Automation", "CRM", "Machine Learning"],
+      avgPricePerUser: 45,
+      marketPosition: "Standard",
+    },
+    Drip: {
+      category: "Email Marketing",
+      features: ["E-commerce Automation", "Behavioral Triggers", "Revenue Attribution"],
+      avgPricePerUser: 39,
+      marketPosition: "Standard",
+    },
+    ConvertKit: {
+      category: "Email Marketing",
+      features: ["Creator-Focused Tools", "Automation", "Landing Pages"],
+      avgPricePerUser: 29,
+      marketPosition: "Standard",
+    },
+    MailerLite: {
+      category: "Email Marketing",
+      features: ["Drag-and-Drop Editor", "Automation", "Landing Pages"],
+      avgPricePerUser: 15,
+      marketPosition: "Budget",
+    },
+    "Sendinblue (Brevo)": {
+      category: "Email Marketing",
+      features: ["Multi-channel Marketing", "SMS", "Chat", "CRM"],
+      avgPricePerUser: 25,
+      marketPosition: "Standard",
+    },
+    Emma: {
+      category: "Email Marketing",
+      features: ["Design-Focused Templates", "Personalization", "Analytics"],
+      avgPricePerUser: 89,
+      marketPosition: "Standard",
+    },
+    "Benchmark Email": {
+      category: "Email Marketing",
+      features: ["Responsive Templates", "A/B Testing", "Marketing Automation"],
+      avgPricePerUser: 20,
+      marketPosition: "Budget",
+    },
+    Moosend: {
+      category: "Email Marketing",
+      features: ["Marketing Automation", "Landing Pages", "Analytics"],
+      avgPricePerUser: 16,
+      marketPosition: "Budget",
     },
 
     // Finance & Accounting (expanded)
@@ -521,7 +614,12 @@ export default function SaaSContractAnalyzer({
   }
   function expectedFor(contract: Contract) {
     const isObs = contract.category === "Observability & Monitoring"
-    const seats = isObs ? Number.parseFloat(contract.obsUnits || "0") || 1 : Number.parseInt(contract.users || "0") || 1
+    const isEmail = contract.category === "Email Marketing"
+    const seats = isObs
+      ? Number.parseFloat(contract.obsUnits || "0") || 1
+      : isEmail
+        ? Number.parseFloat(contract.emailVolume || "0") || 1000
+        : Number.parseInt(contract.users || "0") || 1
 
     let { range } = sizeBandBySeats(seats)
 
@@ -549,9 +647,12 @@ export default function SaaSContractAnalyzer({
 
   function addContract() {
     const isObs = currentContract.category === "Observability & Monitoring"
+    const isEmail = currentContract.category === "Email Marketing"
     const quantity = isObs
       ? Number.parseFloat(currentContract.obsUnits || "0")
-      : Number.parseInt(currentContract.users || "0")
+      : isEmail
+        ? Number.parseFloat(currentContract.emailVolume || "0")
+        : Number.parseInt(currentContract.users || "0")
     const totalVal = Number.parseFloat(currentContract.totalValue || "0")
 
     if (
@@ -573,7 +674,9 @@ export default function SaaSContractAnalyzer({
 
     const unitLabel = isObs
       ? OBS_PRODUCTS[(currentContract.obsProduct || "Infrastructure monitoring") as ObsProduct].unit
-      : "user"
+      : isEmail
+        ? "profiles/contacts"
+        : "user"
 
     const newContract: Contract = {
       ...currentContract,
@@ -582,9 +685,10 @@ export default function SaaSContractAnalyzer({
       features: vendor.features,
       avgPricePerUser: vendor.avgPricePerUser,
       marketPosition: vendor.marketPosition,
-      // treat as price per unit per month (user or obs unit)
+      // treat as price per unit per month (user, obs unit, or email volume)
       actualPricePerUser: totalVal / quantity / currentContract.contractLength,
       unitLabel,
+      emailVolume: isEmail ? currentContract.emailVolume : undefined,
     }
 
     setContracts((prev) => [...prev, newContract])
@@ -596,6 +700,7 @@ export default function SaaSContractAnalyzer({
       totalValue: "",
       obsProduct: "" as "" | ObsProduct,
       obsUnits: "",
+      emailVolume: "",
     })
   }
 
@@ -629,7 +734,9 @@ export default function SaaSContractAnalyzer({
       const volume =
         c.category === "Observability & Monitoring"
           ? Number.parseFloat(c.obsUnits || "0") || 0
-          : Number.parseInt(c.users || "0") || 0
+          : c.category === "Email Marketing"
+            ? Number.parseFloat(c.emailVolume || "0") || 0
+            : Number.parseInt(c.users || "0") || 0
       const yourMonthly = c.actualPricePerUser
       const { targetMid } = expectedFor(c)
       totalSpend += yourMonthly * volume * 12
@@ -748,22 +855,11 @@ export default function SaaSContractAnalyzer({
                   </select>
                 </div>
 
-                {/* Users/Licenses or Observability Units */}
-                {currentContract.category !== "Observability & Monitoring" ? (
-                  <div className="w-full max-w-sm">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Users/Licenses</label>
-                    <input
-                      type="number"
-                      value={currentContract.users}
-                      onChange={(e) => setCurrentContract({ ...currentContract, users: e.target.value })}
-                      placeholder="50"
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                ) : (
+                {/* Users/Licenses, Observability Units, or Email Volume */}
+                {currentContract.category === "Observability & Monitoring" ? (
                   <>
                     <div className="w-full max-w-sm">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Observability Product</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Product</label>
                       <select
                         value={currentContract.obsProduct || ""}
                         onChange={(e) =>
@@ -794,6 +890,29 @@ export default function SaaSContractAnalyzer({
                       </p>
                     </div>
                   </>
+                ) : currentContract.category === "Email Marketing" ? (
+                  <div className="w-full max-w-sm">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Profiles/Contacts</label>
+                    <input
+                      type="number"
+                      value={currentContract.emailVolume}
+                      onChange={(e) => setCurrentContract({ ...currentContract, emailVolume: e.target.value })}
+                      placeholder="10000"
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Enter number of profiles/contacts for your contract.</p>
+                  </div>
+                ) : (
+                  <div className="w-full max-w-sm">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Users/Licenses</label>
+                    <input
+                      type="number"
+                      value={currentContract.users}
+                      onChange={(e) => setCurrentContract({ ...currentContract, users: e.target.value })}
+                      placeholder="50"
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
                 )}
 
                 <div className="w-full max-w-sm">
@@ -815,10 +934,14 @@ export default function SaaSContractAnalyzer({
                       !currentContract.totalValue ||
                       (currentContract.category === "Observability & Monitoring"
                         ? !currentContract.obsUnits
-                        : !currentContract.users) ||
+                        : currentContract.category === "Email Marketing"
+                          ? !currentContract.emailVolume
+                          : !currentContract.users) ||
                       (currentContract.category === "Observability & Monitoring"
                         ? Number.parseFloat(currentContract.obsUnits || "0") <= 0
-                        : Number.parseInt(currentContract.users || "0") <= 0) ||
+                        : currentContract.category === "Email Marketing"
+                          ? Number.parseFloat(currentContract.emailVolume || "0") <= 0
+                          : Number.parseInt(currentContract.users || "0") <= 0) ||
                       Number.parseFloat(currentContract.totalValue) <= 0
                     }
                     className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -846,7 +969,9 @@ export default function SaaSContractAnalyzer({
                             <Users size={14} />{" "}
                             {contract.category === "Observability & Monitoring"
                               ? `${contract.obsUnits || 0} ${contract.unitLabel}`
-                              : `${contract.users} users`}
+                              : contract.category === "Email Marketing"
+                                ? `${contract.emailVolume || 0} profiles/contacts`
+                                : `${contract.users} users`}
                           </span>
                         </div>
                         <div className="text-sm text-gray-600">
@@ -919,7 +1044,9 @@ export default function SaaSContractAnalyzer({
                         const volume =
                           contract.category === "Observability & Monitoring"
                             ? Number.parseFloat(contract.obsUnits || "0") || 0
-                            : Number.parseInt(contract.users || "0") || 0
+                            : contract.category === "Email Marketing"
+                              ? Number.parseFloat(contract.emailVolume || "0") || 0
+                              : Number.parseInt(contract.users || "0") || 0
                         const annualImpact = Math.round((yourPrice - targetMid) * volume * 12)
 
                         const status =
