@@ -731,6 +731,19 @@ export default function SaaSContractAnalyzer({
   function calculateSavings() {
     let totalSavings = 0
     let totalSpend = 0
+    let consolidationSavings = 0
+
+    // Group contracts by category for consolidation analysis
+    const contractsByCategory = contracts.reduce(
+      (acc, contract) => {
+        if (!acc[contract.category]) {
+          acc[contract.category] = []
+        }
+        acc[contract.category].push(contract)
+        return acc
+      },
+      {} as Record<string, Contract[]>,
+    )
 
     contracts.forEach((c) => {
       const volume =
@@ -745,11 +758,143 @@ export default function SaaSContractAnalyzer({
       if (yourMonthly > targetMid) totalSavings += (yourMonthly - targetMid) * volume * 12
     })
 
-    return { totalSavings, totalSpend }
+    // Calculate consolidation savings for categories with multiple contracts
+    Object.entries(contractsByCategory).forEach(([category, categoryContracts]) => {
+      if (categoryContracts.length > 1) {
+        // Find the lowest cost vendor in this category
+        const lowestCostVendor = categoryContracts.reduce((lowest, current) => {
+          return current.actualPricePerUser < lowest.actualPricePerUser ? current : lowest
+        })
+
+        // Calculate total units and current spend for this category
+        let totalUnits = 0
+        let currentCategorySpend = 0
+
+        categoryContracts.forEach((contract) => {
+          const volume =
+            contract.category === "Observability & Monitoring"
+              ? Number.parseFloat(contract.obsUnits || "0") || 0
+              : contract.category === "Email Marketing"
+                ? Number.parseFloat(contract.emailVolume || "0") || 0
+                : Number.parseInt(contract.users || "0") || 0
+          totalUnits += volume
+          currentCategorySpend += contract.actualPricePerUser * volume * 12
+        })
+
+        // Calculate optimized cost (all units at lowest vendor price)
+        const optimizedCost = totalUnits * lowestCostVendor.actualPricePerUser * 12
+        const categorySavings = currentCategorySpend - optimizedCost
+
+        if (categorySavings > 0) {
+          consolidationSavings += categorySavings
+        }
+      }
+    })
+
+    return {
+      totalSavings: Math.max(totalSavings, consolidationSavings),
+      totalSpend,
+      consolidationSavings,
+      contractsByCategory,
+    }
+  }
+
+  function getConsolidationRecommendations() {
+    const recommendations: Array<{
+      category: string
+      currentSpend: number
+      optimizedSpend: number
+      savings: number
+      lowestCostVendor: string
+      contracts: Array<{
+        vendor: string
+        units: number
+        currentCost: number
+        recommendation: string
+      }>
+    }> = []
+
+    // Group contracts by category
+    const contractsByCategory = contracts.reduce(
+      (acc, contract) => {
+        if (!acc[contract.category]) {
+          acc[contract.category] = []
+        }
+        acc[contract.category].push(contract)
+        return acc
+      },
+      {} as Record<string, Contract[]>,
+    )
+
+    Object.entries(contractsByCategory).forEach(([category, categoryContracts]) => {
+      if (categoryContracts.length > 1) {
+        // Find the lowest cost vendor in this category
+        const lowestCostVendor = categoryContracts.reduce((lowest, current) => {
+          return current.actualPricePerUser < lowest.actualPricePerUser ? current : lowest
+        })
+
+        // Calculate totals for this category
+        let totalUnits = 0
+        let currentCategorySpend = 0
+        const contractDetails: Array<{
+          vendor: string
+          units: number
+          currentCost: number
+          recommendation: string
+        }> = []
+
+        categoryContracts.forEach((contract) => {
+          const volume =
+            contract.category === "Observability & Monitoring"
+              ? Number.parseFloat(contract.obsUnits || "0") || 0
+              : contract.category === "Email Marketing"
+                ? Number.parseFloat(contract.emailVolume || "0") || 0
+                : Number.parseInt(contract.users || "0") || 0
+
+          totalUnits += volume
+          const annualCost = contract.actualPricePerUser * volume * 12
+          currentCategorySpend += annualCost
+
+          contractDetails.push({
+            vendor: contract.vendor,
+            units: volume,
+            currentCost: annualCost,
+            recommendation:
+              contract.vendor === lowestCostVendor.vendor
+                ? `Increase to ${totalUnits} ${contract.unitLabel || "units"}`
+                : "Reduce to 0 units",
+          })
+        })
+
+        // Update the recommendation for the lowest cost vendor after we know total units
+        const lowestCostIndex = contractDetails.findIndex((c) => c.vendor === lowestCostVendor.vendor)
+        if (lowestCostIndex !== -1) {
+          contractDetails[lowestCostIndex].recommendation =
+            `Increase to ${totalUnits} ${lowestCostVendor.unitLabel || "units"}`
+        }
+
+        const optimizedSpend = totalUnits * lowestCostVendor.actualPricePerUser * 12
+        const savings = currentCategorySpend - optimizedSpend
+
+        if (savings > 0) {
+          recommendations.push({
+            category,
+            currentSpend: currentCategorySpend,
+            optimizedSpend,
+            savings,
+            lowestCostVendor: lowestCostVendor.vendor,
+            contracts: contractDetails,
+          })
+        }
+      }
+    })
+
+    return recommendations
   }
 
   const overlaps = getFeatureOverlaps()
-  const { totalSavings, totalSpend } = calculateSavings()
+  const { totalSavings, totalSpend, consolidationSavings, contractsByCategory } = calculateSavings()
+  const consolidationRecommendations = getConsolidationRecommendations()
   const savingsPercentage = totalSpend > 0 ? (totalSavings / totalSpend) * 100 : 0
   // const hasBackground = Boolean(backgroundImageUrl)
   // const isDark = hasBackground || darkBackground
@@ -760,6 +905,167 @@ export default function SaaSContractAnalyzer({
 :root, html, body {
   background: transparent !important;
   background-color: transparent !important;
+}
+
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  body {
+    background: transparent !important;
+    background-color: transparent !important;
+  }
+  
+  .bg-gradient-to-r {
+    background: linear-gradient(to right, var(--tw-gradient-stops)) !important;
+  }
+  
+  .from-green-500 {
+    --tw-gradient-from: #10b981 !important;
+    --tw-gradient-to: rgb(16 185 129 / 0) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+  }
+  
+  .to-green-600 {
+    --tw-gradient-to: #059669 !important;
+  }
+  
+  .from-blue-600 {
+    --tw-gradient-from: #2563eb !important;
+    --tw-gradient-to: rgb(37 99 235 / 0) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+  }
+  
+  .to-indigo-700 {
+    --tw-gradient-to: #4338ca !important;
+  }
+  
+  .text-white {
+    color: white !important;
+  }
+  
+  .text-green-600 {
+    color: #059669 !important;
+  }
+  
+  .text-blue-600 {
+    color: #2563eb !important;
+  }
+  
+  .text-red-600 {
+    color: #dc2626 !important;
+  }
+  
+  .text-yellow-800 {
+    color: #92400e !important;
+  }
+  
+  .text-yellow-700 {
+    color: #a16207 !important;
+  }
+  
+  .text-yellow-600 {
+    color: #ca8a04 !important;
+  }
+  
+  .text-blue-900 {
+    color: #1e3a8a !important;
+  }
+  
+  .text-blue-700 {
+    color: #1d4ed8 !important;
+  }
+  
+  .bg-white {
+    background-color: white !important;
+  }
+  
+  .bg-gray-50 {
+    background-color: #f9fafb !important;
+  }
+  
+  .bg-blue-50 {
+    background-color: #eff6ff !important;
+  }
+  
+  .bg-yellow-50 {
+    background-color: #fffbeb !important;
+  }
+  
+  .bg-green-100 {
+    background-color: #dcfce7 !important;
+  }
+  
+  .bg-red-100 {
+    background-color: #fee2e2 !important;
+  }
+  
+  .bg-blue-100 {
+    background-color: #dbeafe !important;
+  }
+  
+  .bg-gray-100 {
+    background-color: #f3f4f6 !important;
+  }
+  
+  .border-blue-200 {
+    border-color: #bfdbfe !important;
+  }
+  
+  .border-yellow-200 {
+    border-color: #fde68a !important;
+  }
+  
+  .border-gray-200 {
+    border-color: #e5e7eb !important;
+  }
+  
+  .border-gray-100 {
+    border-color: #f3f4f6 !important;
+  }
+  
+  .shadow-xl {
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1) !important;
+  }
+  
+  .rounded-2xl {
+    border-radius: 1rem !important;
+  }
+  
+  .rounded-lg {
+    border-radius: 0.5rem !important;
+  }
+  
+  .rounded-full {
+    border-radius: 9999px !important;
+  }
+  
+  /* Hide interactive elements in print */
+  button:not(.print-keep) {
+    display: none !important;
+  }
+  
+  /* Ensure proper spacing */
+  .space-y-6 > * + * {
+    margin-top: 1.5rem !important;
+  }
+  
+  .space-y-4 > * + * {
+    margin-top: 1rem !important;
+  }
+  
+  .space-y-2 > * + * {
+    margin-top: 0.5rem !important;
+  }
+  
+  /* Page breaks */
+  .bg-white.rounded-2xl {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
 }
 `}</style>
       <div className="relative z-10">
@@ -1146,6 +1452,71 @@ export default function SaaSContractAnalyzer({
                           Overlapping features: {overlap.features.join(", ")}
                         </div>
                         <div className="text-xs text-yellow-600 mt-1">Consider consolidating to reduce redundancy</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {consolidationRecommendations.length > 0 && (
+                <div className="bg-white rounded-2xl shadow-xl p-8">
+                  <h2 className="text-2xl font-semibold mb-6">Vendor Consolidation Opportunities</h2>
+                  <div className="space-y-6">
+                    {consolidationRecommendations.map((rec, index) => (
+                      <div key={index} className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h3 className="font-semibold text-blue-900 text-lg">{rec.category}</h3>
+                            <p className="text-blue-700 text-sm">
+                              Consolidate to {rec.lowestCostVendor} for optimal pricing
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-green-600">${rec.savings.toLocaleString()}</div>
+                            <div className="text-sm text-gray-600">annual savings</div>
+                          </div>
+                        </div>
+
+                        <div className="grid md:grid-cols-2 gap-4 mb-4">
+                          <div className="bg-white rounded-lg p-4">
+                            <div className="text-sm text-gray-600 mb-1">Current Annual Spend</div>
+                            <div className="text-xl font-semibold text-gray-900">
+                              ${rec.currentSpend.toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="bg-white rounded-lg p-4">
+                            <div className="text-sm text-gray-600 mb-1">Optimized Annual Spend</div>
+                            <div className="text-xl font-semibold text-green-600">
+                              ${rec.optimizedSpend.toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-gray-900 mb-2">Recommended Actions:</h4>
+                          {rec.contracts.map((contract, contractIndex) => (
+                            <div
+                              key={contractIndex}
+                              className="flex justify-between items-center bg-white rounded-lg p-3"
+                            >
+                              <div>
+                                <span className="font-medium text-gray-900">{contract.vendor}</span>
+                                <span className="ml-2 text-sm text-gray-600">
+                                  ({contract.units} units, ${contract.currentCost.toLocaleString()}/year)
+                                </span>
+                              </div>
+                              <div
+                                className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                  contract.recommendation.includes("Increase")
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-red-100 text-red-800"
+                                }`}
+                              >
+                                {contract.recommendation}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>
