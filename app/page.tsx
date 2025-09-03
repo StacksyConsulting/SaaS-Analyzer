@@ -3,9 +3,25 @@
 import { useState } from "react"
 import { PlusCircle, X, DollarSign, Users, Calendar, TrendingUp, Download, Mail } from "lucide-react"
 import { Jockey_One, Montserrat } from "next/font/google"
+import { createClient } from "@supabase/supabase-js"
 
 const jockeyOne = Jockey_One({ subsets: ["latin"], weight: "400" })
 const montserrat = Montserrat({ subsets: ["latin"], weight: ["400", "500", "600", "700"] })
+
+// Remove this line:
+// const supabase = typeof window !== "undefined" && process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) : null
+
+// Replace with this function:
+function getSupabaseClient() {
+  if (
+    typeof window !== "undefined" &&
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  ) {
+    return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  }
+  return null
+}
 
 const OBS_PRODUCTS = {
   "Application security": { unit: "host-hours (8 GiB)" },
@@ -13,6 +29,30 @@ const OBS_PRODUCTS = {
   "Infrastructure monitoring": { unit: "host-hours (any size)" },
   "Full-stack monitoring": { unit: "host-hours (8 GiB)" },
 } as const
+
+const AI_ML_PRODUCTS = {
+  "OpenAI API": {
+    models: ["GPT-5", "GPT-mini", "GPT-nano", "GPT-4.1", "GPT-4.1 mini", "GPT-4.1 nano", "o4-mini"],
+    unit: "tokens",
+  },
+  "Anthropic Claude": {
+    models: [
+      "Claude 3.5 Sonnet",
+      "Claude 3.5 Haiku",
+      "Claude 3 Opus",
+      "Claude 3 Sonnet",
+      "Claude 3 Haiku",
+      "Claude 2.1",
+      "Claude 2.0",
+      "Claude Instant",
+    ],
+    unit: "tokens",
+  },
+} as const
+
+type AIMLProduct = keyof typeof AI_ML_PRODUCTS
+type AIMLModel = (typeof AI_ML_PRODUCTS)[AIMLProduct]["models"][number]
+
 type ObsProduct = keyof typeof OBS_PRODUCTS
 
 export type SaaSContractAnalyzerProps = {
@@ -38,7 +78,11 @@ type Contract = {
   obsUnits?: string
   // Email Marketing field
   emailVolume?: string
-  unitLabel?: string // display label: "user", "sessions", "host-hours (8 GiB)", "emails/month", etc.
+  // AI & ML fields
+  aimlProduct?: AIMLProduct
+  aimlModel?: AIMLModel
+  aimlTokens?: string
+  unitLabel?: string // display label: "user", "sessions", "host-hours (8 GiB)", "emails/month", "tokens", etc.
 }
 
 export default function SaaSContractAnalyzer({
@@ -57,8 +101,14 @@ export default function SaaSContractAnalyzer({
     totalValue: "",
     obsProduct: "" as "" | ObsProduct,
     obsUnits: "",
-    emailVolume: "", // Add this new field
+    emailVolume: "",
+    aimlProduct: "" as "" | AIMLProduct,
+    aimlModel: "" as "" | AIMLModel,
+    aimlTokens: "",
   })
+
+  const [isLoading, setIsLoading] = useState(false)
+  const [analysisId, setAnalysisId] = useState<string | null>(null)
 
   // Updated vendor database with 2025 accurate pricing
   const vendorDatabase: Record<
@@ -608,11 +658,14 @@ export default function SaaSContractAnalyzer({
   function expectedFor(contract: Contract) {
     const isObs = contract.category === "Observability & Monitoring"
     const isEmail = contract.category === "Email Marketing"
+    const isAIML = contract.category === "AI & ML"
     const seats = isObs
       ? Number.parseFloat(contract.obsUnits || "0") || 1
       : isEmail
         ? Number.parseFloat(contract.emailVolume || "0") || 1000
-        : Number.parseInt(contract.users || "0") || 1
+        : isAIML
+          ? Number.parseFloat(contract.aimlTokens || "0") || 1000000
+          : Number.parseInt(contract.users || "0") || 1
 
     let { range } = sizeBandBySeats(seats)
 
@@ -647,14 +700,17 @@ export default function SaaSContractAnalyzer({
     return { discountRange: range, sticker, minTarget, maxTarget, targetMid }
   }
 
-  function addContract() {
+  async function addContract() {
     const isObs = currentContract.category === "Observability & Monitoring"
     const isEmail = currentContract.category === "Email Marketing"
+    const isAIML = currentContract.category === "AI & ML"
     const quantity = isObs
       ? Number.parseFloat(currentContract.obsUnits || "0")
       : isEmail
         ? Number.parseFloat(currentContract.emailVolume || "0")
-        : Number.parseInt(currentContract.users || "0")
+        : isAIML
+          ? Number.parseFloat(currentContract.aimlTokens || "0")
+          : Number.parseInt(currentContract.users || "0")
     const totalVal = Number.parseFloat(currentContract.totalValue || "0")
 
     if (
@@ -678,7 +734,9 @@ export default function SaaSContractAnalyzer({
       ? OBS_PRODUCTS[(currentContract.obsProduct || "Infrastructure monitoring") as ObsProduct].unit
       : isEmail
         ? "profiles/contacts"
-        : "user"
+        : isAIML
+          ? "tokens"
+          : "user"
 
     const newContract: Contract = {
       ...currentContract,
@@ -687,10 +745,12 @@ export default function SaaSContractAnalyzer({
       features: vendor.features,
       avgPricePerUser: vendor.avgPricePerUser,
       marketPosition: vendor.marketPosition,
-      // treat as price per unit per month (user, obs unit, or email volume)
       actualPricePerUser: totalVal / quantity / currentContract.contractLength,
       unitLabel,
       emailVolume: isEmail ? currentContract.emailVolume : undefined,
+      aimlProduct: isAIML ? (currentContract.vendor as AIMLProduct) : undefined,
+      aimlModel: isAIML ? currentContract.aimlModel : undefined,
+      aimlTokens: isAIML ? currentContract.aimlTokens : undefined,
     }
 
     setContracts((prev) => [...prev, newContract])
@@ -703,6 +763,9 @@ export default function SaaSContractAnalyzer({
       obsProduct: "" as "" | ObsProduct,
       obsUnits: "",
       emailVolume: "",
+      aimlProduct: "" as "" | AIMLProduct,
+      aimlModel: "" as "" | AIMLModel,
+      aimlTokens: "",
     })
   }
 
@@ -710,8 +773,49 @@ export default function SaaSContractAnalyzer({
     setContracts((cs) => cs.filter((c) => c.id !== id))
   }
 
-  function analyzeContracts() {
-    setShowResults(true)
+  async function analyzeContracts() {
+    setIsLoading(true)
+    try {
+      // Only save to database if Supabase is configured
+      const supabase = getSupabaseClient()
+      if (supabase) {
+        const analysisData = {
+          contracts: contracts.map((contract) => ({
+            vendor: contract.vendor,
+            category: contract.category,
+            contract_length: contract.contractLength,
+            users: contract.users,
+            total_value: contract.totalValue,
+            obs_product: contract.obsProduct,
+            obs_units: contract.obsUnits,
+            email_volume: contract.emailVolume,
+            features: contract.features,
+            avg_price_per_user: contract.avgPricePerUser,
+            market_position: contract.marketPosition,
+            actual_price_per_user: contract.actualPricePerUser,
+            unit_label: contract.unitLabel,
+          })),
+          total_savings: calculateSavings().totalSavings,
+          total_spend: calculateSavings().totalSpend,
+          created_at: new Date().toISOString(),
+        }
+
+        const { data, error } = await supabase.from("contract_analyses").insert([analysisData]).select()
+
+        if (error) {
+          console.error("Error saving analysis:", error)
+        } else if (data && data[0]) {
+          setAnalysisId(data[0].id)
+        }
+      }
+
+      setShowResults(true)
+    } catch (error) {
+      console.error("Error analyzing contracts:", error)
+      setShowResults(true) // Still show results even if save fails
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   function getFeatureOverlaps() {
@@ -751,7 +855,9 @@ export default function SaaSContractAnalyzer({
           ? Number.parseFloat(c.obsUnits || "0") || 0
           : c.category === "Email Marketing"
             ? Number.parseFloat(c.emailVolume || "0") || 0
-            : Number.parseInt(c.users || "0") || 0
+            : c.category === "AI & ML"
+              ? Number.parseFloat(c.aimlTokens || "0") || 0
+              : Number.parseInt(c.users || "0") || 0
       const yourMonthly = c.actualPricePerUser
       const { targetMid } = expectedFor(c)
       totalSpend += yourMonthly * volume * 12
@@ -776,7 +882,9 @@ export default function SaaSContractAnalyzer({
               ? Number.parseFloat(contract.obsUnits || "0") || 0
               : contract.category === "Email Marketing"
                 ? Number.parseFloat(contract.emailVolume || "0") || 0
-                : Number.parseInt(contract.users || "0") || 0
+                : contract.category === "AI & ML"
+                  ? Number.parseFloat(contract.aimlTokens || "0") || 0
+                  : Number.parseInt(contract.users || "0") || 0
           totalUnits += volume
           currentCategorySpend += contract.actualPricePerUser * volume * 12
         })
@@ -849,7 +957,9 @@ export default function SaaSContractAnalyzer({
               ? Number.parseFloat(contract.obsUnits || "0") || 0
               : contract.category === "Email Marketing"
                 ? Number.parseFloat(contract.emailVolume || "0") || 0
-                : Number.parseInt(contract.users || "0") || 0
+                : contract.category === "AI & ML"
+                  ? Number.parseFloat(contract.aimlTokens || "0") || 0
+                  : Number.parseInt(contract.users || "0") || 0
 
           totalUnits += volume
           const annualCost = contract.actualPricePerUser * volume * 12
@@ -919,6 +1029,160 @@ export default function SaaSContractAnalyzer({
     background-color: transparent !important;
   }
   
+  /* Make content more compact for 2-page layout */
+  .min-h-screen {
+    min-height: auto !important;
+  }
+  
+  .p-4 {
+    padding: 0.5rem !important;
+  }
+  
+  .p-8 {
+    padding: 1rem !important;
+  }
+  
+  .p-6 {
+    padding: 0.75rem !important;
+  }
+  
+  .mb-8 {
+    margin-bottom: 1rem !important;
+  }
+  
+  .mb-6 {
+    margin-bottom: 0.75rem !important;
+  }
+  
+  .mb-4 {
+    margin-bottom: 0.5rem !important;
+  }
+  
+  .text-5xl {
+    font-size: 2rem !important;
+    line-height: 1.2 !important;
+  }
+  
+  .text-3xl {
+    font-size: 1.5rem !important;
+    line-height: 1.3 !important;
+  }
+  
+  .text-2xl {
+    font-size: 1.25rem !important;
+    line-height: 1.3 !important;
+  }
+  
+  .text-xl {
+    font-size: 1.1rem !important;
+    line-height: 1.3 !important;
+  }
+  
+  .py-4 {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+  }
+  
+  .py-3 {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+  
+  .px-4 {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
+  
+  .px-3 {
+    padding-left: 0.25rem !important;
+    padding-right: 0.25rem !important;
+  }
+  
+  /* Compact table styling */
+  table {
+    font-size: 0.75rem !important;
+  }
+  
+  th, td {
+    padding: 0.25rem 0.5rem !important;
+  }
+  
+  /* Compact spacing for sections */
+  .space-y-6 > * + * {
+    margin-top: 0.75rem !important;
+  }
+  
+  .space-y-4 > * + * {
+    margin-top: 0.5rem !important;
+  }
+  
+  .space-y-2 > * + * {
+    margin-top: 0.25rem !important;
+  }
+  
+  /* Force page breaks */
+  .page-break-before {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+  
+  /* Prevent page breaks within important sections */
+  .bg-gradient-to-r.from-green-500 {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Make the green savings container more compact for print */
+  .bg-gradient-to-r.from-green-500.to-green-600 {
+    padding: 0.75rem !important;
+  }
+
+  .bg-gradient-to-r.from-green-500.to-green-600 .text-3xl {
+    font-size: 1.25rem !important;
+    margin-bottom: 0.25rem !important;
+  }
+
+  .bg-gradient-to-r.from-green-500.to-green-600 .text-5xl {
+    font-size: 1.75rem !important;
+    margin-bottom: 0.25rem !important;
+    line-height: 1.1 !important;
+  }
+
+  .bg-gradient-to-r.from-green-500.to-green-600 .text-xl {
+    font-size: 0.95rem !important;
+    line-height: 1.2 !important;
+  }
+
+  .bg-gradient-to-r.from-green-500.to-green-600 .text-sm {
+    font-size: 0.75rem !important;
+    margin-top: 0.25rem !important;
+  }
+  
+  .bg-white.rounded-2xl {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    margin-bottom: 0.5rem !important;
+  }
+  
+  /* Hide the back button and make CTA more compact */
+  .text-center:last-child {
+    display: none !important;
+  }
+  
+  /* Make CTA section more compact */
+  .bg-gradient-to-r.from-blue-600 .text-3xl {
+    font-size: 1.25rem !important;
+  }
+  
+  .bg-gradient-to-r.from-blue-600 .text-xl {
+    font-size: 1rem !important;
+  }
+  
+  .bg-gradient-to-r.from-blue-600 {
+    padding: 1rem !important;
+  }
+  
+  /* Preserve all the color styles from before */
   .bg-gradient-to-r {
     background: linear-gradient(to right, var(--tw-gradient-stops)) !important;
   }
@@ -1028,15 +1292,15 @@ export default function SaaSContractAnalyzer({
   }
   
   .shadow-xl {
-    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1) !important;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important;
   }
   
   .rounded-2xl {
-    border-radius: 1rem !important;
+    border-radius: 0.5rem !important;
   }
   
   .rounded-lg {
-    border-radius: 0.5rem !important;
+    border-radius: 0.25rem !important;
   }
   
   .rounded-full {
@@ -1046,25 +1310,6 @@ export default function SaaSContractAnalyzer({
   /* Hide interactive elements in print */
   button:not(.print-keep) {
     display: none !important;
-  }
-  
-  /* Ensure proper spacing */
-  .space-y-6 > * + * {
-    margin-top: 1.5rem !important;
-  }
-  
-  .space-y-4 > * + * {
-    margin-top: 1rem !important;
-  }
-  
-  .space-y-2 > * + * {
-    margin-top: 0.5rem !important;
-  }
-  
-  /* Page breaks */
-  .bg-white.rounded-2xl {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
   }
 }
 `}</style>
@@ -1099,10 +1344,13 @@ export default function SaaSContractAnalyzer({
                         ...prev,
                         category: val,
                         vendor: "",
-                        // set sensible default for obs product
+                        // set sensible defaults for different categories
                         obsProduct:
                           val === "Observability & Monitoring" ? "Infrastructure monitoring" : ("" as "" | ObsProduct),
                         obsUnits: val === "Observability & Monitoring" ? prev.obsUnits : "",
+                        aimlProduct: val === "AI & ML" ? ("" as "" | AIMLProduct) : ("" as "" | AIMLProduct),
+                        aimlModel: val === "AI & ML" ? ("" as "" | AIMLModel) : ("" as "" | AIMLModel),
+                        aimlTokens: val === "AI & ML" ? prev.aimlTokens : "",
                       }))
                     }}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1154,7 +1402,7 @@ export default function SaaSContractAnalyzer({
                   </select>
                 </div>
 
-                {/* Users/Licenses, Observability Units, or Email Volume */}
+                {/* Users/Licenses, Observability Units, Email Volume, or AI/ML Tokens */}
                 {currentContract.category === "Observability & Monitoring" ? (
                   <>
                     <div className="w-full max-w-sm">
@@ -1201,6 +1449,40 @@ export default function SaaSContractAnalyzer({
                     />
                     <p className="mt-1 text-xs text-gray-500">Enter number of profiles/contacts for your contract.</p>
                   </div>
+                ) : currentContract.category === "AI & ML" ? (
+                  <>
+                    <div className="w-full max-w-sm">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Model</label>
+                      <select
+                        value={currentContract.aimlModel || ""}
+                        onChange={(e) =>
+                          setCurrentContract((prev) => ({ ...prev, aimlModel: e.target.value as AIMLModel }))
+                        }
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        disabled={!currentContract.vendor || !AI_ML_PRODUCTS[currentContract.vendor as AIMLProduct]}
+                      >
+                        <option value="">Select model...</option>
+                        {currentContract.vendor && AI_ML_PRODUCTS[currentContract.vendor as AIMLProduct]
+                          ? AI_ML_PRODUCTS[currentContract.vendor as AIMLProduct].models.map((model) => (
+                              <option key={model} value={model}>
+                                {model}
+                              </option>
+                            ))
+                          : null}
+                      </select>
+                    </div>
+                    <div className="w-full max-w-sm">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Number of Tokens</label>
+                      <input
+                        type="number"
+                        value={currentContract.aimlTokens}
+                        onChange={(e) => setCurrentContract((prev) => ({ ...prev, aimlTokens: e.target.value }))}
+                        placeholder="1000000"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">Enter total number of tokens for the contract term.</p>
+                    </div>
+                  </>
                 ) : (
                   <div className="w-full max-w-sm">
                     <label className="block text-sm font-medium text-gray-700 mb-2">Users/Licenses</label>
@@ -1235,12 +1517,16 @@ export default function SaaSContractAnalyzer({
                         ? !currentContract.obsUnits
                         : currentContract.category === "Email Marketing"
                           ? !currentContract.emailVolume
-                          : !currentContract.users) ||
+                          : currentContract.category === "AI & ML"
+                            ? !currentContract.aimlTokens
+                            : !currentContract.users) ||
                       (currentContract.category === "Observability & Monitoring"
                         ? Number.parseFloat(currentContract.obsUnits || "0") <= 0
                         : currentContract.category === "Email Marketing"
                           ? Number.parseFloat(currentContract.emailVolume || "0") <= 0
-                          : Number.parseInt(currentContract.users || "0") <= 0) ||
+                          : currentContract.category === "AI & ML"
+                            ? Number.parseFloat(currentContract.aimlTokens || "0") <= 0
+                            : Number.parseInt(currentContract.users || "0") <= 0) ||
                       Number.parseFloat(currentContract.totalValue) <= 0
                     }
                     className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -1270,7 +1556,9 @@ export default function SaaSContractAnalyzer({
                               ? `${contract.obsUnits || 0} ${contract.unitLabel}`
                               : contract.category === "Email Marketing"
                                 ? `${contract.emailVolume || 0} profiles/contacts`
-                                : `${contract.users} users`}
+                                : contract.category === "AI & ML"
+                                  ? `${contract.aimlTokens || 0} tokens`
+                                  : `${contract.users} users`}
                           </span>
                         </div>
                         <div className="text-sm text-gray-600">
@@ -1348,7 +1636,9 @@ export default function SaaSContractAnalyzer({
                             ? Number.parseFloat(contract.obsUnits || "0") || 0
                             : contract.category === "Email Marketing"
                               ? Number.parseFloat(contract.emailVolume || "0") || 0
-                              : Number.parseInt(contract.users || "0") || 0
+                              : contract.category === "AI & ML"
+                                ? Number.parseFloat(contract.aimlTokens || "0") || 0
+                                : Number.parseInt(contract.users || "0") || 0
                         const annualImpact = Math.round((yourPrice - targetMid) * volume * 12)
 
                         const status =
@@ -1459,7 +1749,7 @@ export default function SaaSContractAnalyzer({
               )}
 
               {consolidationRecommendations.length > 0 && (
-                <div className="bg-white rounded-2xl shadow-xl p-8">
+                <div className="bg-white rounded-2xl shadow-xl p-8 page-break-before">
                   <h2 className="text-2xl font-semibold mb-6">Vendor Consolidation Opportunities</h2>
                   <div className="space-y-6">
                     {consolidationRecommendations.map((rec, index) => (
