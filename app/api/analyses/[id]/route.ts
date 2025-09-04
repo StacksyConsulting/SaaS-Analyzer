@@ -11,7 +11,6 @@ export async function PUT(
   if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-}
 
   const supabase = createClient()
   const body = await request.json()
