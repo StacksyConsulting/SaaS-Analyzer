@@ -11,4 +11,3 @@ export const createClient = () =>
       cookies,
     }
   )
-Add Supabase server utility
