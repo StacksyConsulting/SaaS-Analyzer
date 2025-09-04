@@ -48,6 +48,7 @@ export async function PUT(
   if (!token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
+}
 
   supabase.auth.setAuth(token)
 
